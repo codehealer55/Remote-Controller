@@ -40,7 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (data === true) {
       //Canvas Stream
       canvas = document.getElementById("stream");
-      canvasStream = canvas.captureStream(33);
+      canvasStream = canvas.captureStream(15);
       const context = canvas.getContext("2d");
       const img = document.getElementById("image");
       img.onload = () => {
@@ -281,6 +281,8 @@ function startStreaming() {
           credential: "123", // Replace with your TURN server credential
         },
       ],
+      bundlePolicy: "max-bundle",
+      rtcpMuxPolicy: "require",
     };
 
     const constraints = {
@@ -296,6 +298,24 @@ function startStreaming() {
       connection.addTrack(track, canvasStream);
       console.log(track);
     });
+
+    connection.oniceconnectionstatechange = async () => {
+      if (connection.iceConnectionState === "connected") {
+        const sender = connection
+          .getSenders()
+          .find((s) => s.track.kind === "video");
+        const parameters = sender.getParameters();
+
+        // Set max bitrate and keyframe interval
+        parameters.encodings[0] = {
+          maxBitrate: 500000, // 500 kbps
+          maxFramerate: 15, // 15 FPS
+          keyFrameInterval: 30, // Keyframe every 2 seconds (15 FPS * 2)
+        };
+
+        await sender.setParameters(parameters);
+      }
+    };
 
     connection.onicecandidate = (event) => {
       // console.log(event.candidate);
@@ -317,10 +337,7 @@ function startStreaming() {
       })
       .then(
         (desc) => {
-          desc.sdp = desc.sdp.replace(
-            /a=mid:video\r\n/g,
-            "a=mid:video\r\nb=AS:256\r\n"
-          );
+          desc.sdp = preferCodec(desc.sdp, "H264");
           connection.setLocalDescription(desc);
           let data = { client: mappingid, stream: this.stream, sdpOffer: desc };
           socket.emit("/v1/stream/start", data);
@@ -343,6 +360,53 @@ function startStreaming() {
     // };
   });
 }
+
+function preferCodec(sdp, codec) {
+  const sdpLines = sdp.split("\r\n");
+  let mLineIndex = -1;
+
+  // Find the m-line for video
+  for (let i = 0; i < sdpLines.length; i++) {
+    if (sdpLines[i].startsWith("m=video")) {
+      mLineIndex = i;
+      break;
+    }
+  }
+
+  if (mLineIndex === -1) {
+    return sdp;
+  }
+
+  // Find the payload types for the codec
+  const codecRegex = new RegExp(`a=rtpmap:(\\d+) ${codec}/90000`, "i");
+  const payloadTypes = [];
+
+  for (let i = 0; i < sdpLines.length; i++) {
+    const match = sdpLines[i].match(codecRegex);
+    if (match) {
+      payloadTypes.push(match[1]);
+    }
+  }
+
+  if (payloadTypes.length === 0) {
+    return sdp;
+  }
+
+  // Modify the m-line to set the codec as the first one
+  const mLineElements = sdpLines[mLineIndex].split(" ");
+  const newMLine = [
+    mLineElements[0],
+    mLineElements[1],
+    mLineElements[2],
+    ...payloadTypes,
+    ...mLineElements.slice(3),
+  ].join(" ");
+
+  sdpLines[mLineIndex] = newMLine;
+
+  return sdpLines.join("\r\n");
+}
+
 function stopStreaming() {
   console.log(connection);
   console.log(canvasStream);
