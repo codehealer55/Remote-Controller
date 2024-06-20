@@ -3,16 +3,11 @@ const {
   BrowserWindow,
   ipcMain,
   dialog,
-  desktopCapturer,
   Tray,
   Menu,
   powerSaveBlocker,
 } = require("electron");
-const { spawn } = require("child_process");
 const path = require("path");
-const net = require("net");
-const fs = require("fs");
-const { customMedia } = require("electron");
 
 powerSaveBlocker.start("prevent-app-suspension");
 powerSaveBlocker.start("prevent-display-sleep");
