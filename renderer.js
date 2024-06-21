@@ -40,7 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (data === true) {
       //Canvas Stream
       canvas = document.getElementById("stream");
-      canvasStream = canvas.captureStream(15);
+      canvasStream = canvas.captureStream(60);
       const context = canvas.getContext("2d");
       const img = document.getElementById("image");
       img.onload = () => {
@@ -308,9 +308,9 @@ function startStreaming() {
 
         // Set max bitrate and keyframe interval
         parameters.encodings[0] = {
-          maxBitrate: 500000, // 500 kbps
-          maxFramerate: 15, // 15 FPS
-          keyFrameInterval: 30, // Keyframe every 2 seconds (15 FPS * 2)
+          maxBitrate: 1000000, // 500 kbps
+          maxFramerate: 60, // 15 FPS
+          keyFrameInterval: 120, // Keyframe every 2 seconds (15 FPS * 2)
         };
 
         await sender.setParameters(parameters);
