@@ -48,7 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
       };
       setInterval(() => {
         context.drawImage(img, 0, 0, canvas.width, canvas.height);
-      }, 33);
+      }, 1000 / 24);
       connect();
     }
   });
@@ -301,6 +301,7 @@ function startStreaming() {
 
     connection.oniceconnectionstatechange = async () => {
       if (connection.iceConnectionState === "connected") {
+        console.log("iceconnection changed");
         const sender = connection
           .getSenders()
           .find((s) => s.track.kind === "video");
@@ -309,14 +310,13 @@ function startStreaming() {
         // Set max bitrate and keyframe interval
         parameters.encodings[0] = {
           maxBitrate: 1000000, // 500 kbps
-          maxFramerate: 60, // 15 FPS
-          keyFrameInterval: 120, // Keyframe every 2 seconds (15 FPS * 2)
+          maxFramerate: 24, // 15 FPS
+          keyFrameInterval: 48, // Keyframe every 2 seconds (15 FPS * 2)
         };
 
         await sender.setParameters(parameters);
       }
     };
-
     connection.onicecandidate = (event) => {
       // console.log(event.candidate);
       if (event.candidate) {
@@ -337,7 +337,7 @@ function startStreaming() {
       })
       .then(
         (desc) => {
-          desc.sdp = preferCodec(desc.sdp, "H264");
+          desc.sdp = preferCodec(desc.sdp, "AV1X");
           connection.setLocalDescription(desc);
           let data = { client: mappingid, stream: this.stream, sdpOffer: desc };
           socket.emit("/v1/stream/start", data);
