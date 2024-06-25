@@ -8,4 +8,6 @@ contextBridge.exposeInMainWorld("api", {
   onBmpData: (callback) =>
     ipcRenderer.on("get-stream", (event, bmpData) => callback(bmpData)),
   getBitmapData: () => ipcRenderer.invoke("get-bitmap-data"),
+  getStream: () => ipcRenderer.invoke("getStream"),
+  readFile: (filePath) => ipcRenderer.invoke("read-file", filePath),
 });

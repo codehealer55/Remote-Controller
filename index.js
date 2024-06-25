@@ -6,8 +6,10 @@ const {
   Tray,
   Menu,
   powerSaveBlocker,
+  desktopCapturer,
 } = require("electron");
 const path = require("path");
+const fs = require("fs");
 
 powerSaveBlocker.start("prevent-app-suspension");
 powerSaveBlocker.start("prevent-display-sleep");
@@ -189,4 +191,22 @@ ipcMain.handle("getItem", (event, key) => {
 
 ipcMain.handle("get-bitmap-data", (event) => {
   return latestBitmapData;
+});
+
+ipcMain.handle("getStream", async () => {
+  const sources = await desktopCapturer.getSources({ types: ["screen"] });
+  if (sources.length > 0) {
+    return sources[0].id;
+  } else {
+    throw new Error("No screen sources found.");
+  }
+});
+
+ipcMain.handle("read-file", async (event, filePath) => {
+  try {
+    const data = fs.readFileSync(filePath, "utf-8");
+    return data.trim();
+  } catch (error) {
+    return { error: error.message };
+  }
 });

@@ -33,14 +33,19 @@ let mediaStream = null;
 let streamstatus = null;
 let canvas;
 let canvasStream;
-
+let currentStream;
+let videoElm;
+let finalStream;
+let currentDesktopState;
 document.addEventListener("DOMContentLoaded", () => {
+  getUserMediaStream();
   window.api.getItem("VantageMDMScreenCastingConnect").then((data) => {
     console.log(data);
     if (data === true) {
       //Canvas Stream
+
       canvas = document.getElementById("stream");
-      canvasStream = canvas.captureStream(60);
+      canvasStream = canvas.captureStream(30);
       const context = canvas.getContext("2d");
       const img = document.getElementById("image");
       img.onload = () => {
@@ -48,11 +53,20 @@ document.addEventListener("DOMContentLoaded", () => {
       };
       setInterval(() => {
         context.drawImage(img, 0, 0, canvas.width, canvas.height);
-      }, 1000 / 24);
+        // context.font = "48px serif";
+        // context.textAlign = "center";
+        // context.textBaseline = "middle";
+        // context.fillStyle = "black";
+        // context.fillText("Hello, Canvas!", canvas.width / 2, canvas.height / 2);
+      }, 1000 / 60);
+      videoElm = document.getElementById("vid");
+      // getUserMediaStream();
+      videoElm.srcObject = mediaStream;
+      finalStream = videoElm.captureStream();
       connect();
     }
   });
-
+  // initStreaming();
   const startButton = document.getElementById("startButton");
   const stopButton = document.getElementById("stopButton");
   window.api.getItem("screensharing").then((data) => {
@@ -150,7 +164,61 @@ document.addEventListener("DOMContentLoaded", () => {
       stopStreaming();
     });
   }
+
+  function readAndLogFile() {
+    const filePath = "C:\\state";
+    window.api
+      .readFile(filePath)
+      .then((result) => {
+        if (currentDesktopState !== result) {
+          if (result === "Default" || videoElm.srcObject === null) {
+            getUserMediaStream();
+            videoElm.srcObject = mediaStream;
+            currentDesktopState = result;
+            // const senders = connection.getSenders();
+            // console.log(senders);
+            // const newTracks = mediaStream.getTracks();
+            // senders.forEach((sender, index) => {
+            //   sender.replaceTrack(newTracks[index]);
+            // });
+          } else if (result === "Secure" || videoElm.srcObject === null) {
+            videoElm.srcObject = canvasStream;
+            currentDesktopState = result;
+            // const senders = connection.getSenders();
+            // console.log(senders);
+            // const newTracks = canvasStream.getTracks();
+            // senders.forEach((sender, index) => {
+            //   sender.replaceTrack(newTracks[index]);
+            // });
+          }
+          changeStream();
+        }
+        // Update the DOM or perform other actions with the result if needed
+      })
+      .catch((error) => {
+        console.error("Error reading file:", error);
+      });
+  }
+  setInterval(readAndLogFile, 33);
 });
+
+function changeStream() {
+  if (connection) {
+    getUserMediaStream();
+    console.log(currentDesktopState);
+    const senders = connection.getSenders();
+    // console.log(senders);
+    let newTracks;
+    canvasStream = canvas.captureStream(30);
+    // const newTracks = mediaStream.getTracks();
+    if (currentDesktopState === "Default") newTracks = mediaStream.getTracks();
+    else newTracks = canvasStream.getTracks();
+    senders.forEach((sender, index) => {
+      sender.replaceTrack(newTracks[index]);
+    });
+  }
+}
+
 function connect(callback) {
   window.api.getItem("mappingId").then((data) => {
     mappingid = data;
@@ -291,32 +359,39 @@ function startStreaming() {
         { googCpuOveruseThreshold: 95 },
       ],
     };
+
     connection = new RTCPeerConnection(configuration, constraints);
-    // console.log(connection.iceServers);
-    canvasStream.getTracks().forEach((track) => {
-      track.contentHint = "screenshare";
-      connection.addTrack(track, canvasStream);
-      console.log(track);
-    });
+    if (currentDesktopState === "Default") {
+      mediaStream.getTracks().forEach((track) => {
+        // track.contentHint = "screenshare";
+        connection.addTrack(track, mediaStream);
+        // console.log(track);
+      });
+    } else {
+      canvasStream.getTracks().forEach((track) => {
+        // track.contentHint = "screenshare";
+        connection.addTrack(track, canvasStream);
+        // console.log(track);
+      });
+    }
+    // connection.oniceconnectionstatechange = async () => {
+    //   if (connection.iceConnectionState === "connected") {
+    //     console.log("iceconnection changed");
+    //     const sender = connection
+    //       .getSenders()
+    //       .find((s) => s.track.kind === "video");
+    //     const parameters = sender.getParameters();
 
-    connection.oniceconnectionstatechange = async () => {
-      if (connection.iceConnectionState === "connected") {
-        console.log("iceconnection changed");
-        const sender = connection
-          .getSenders()
-          .find((s) => s.track.kind === "video");
-        const parameters = sender.getParameters();
+    //     // Set max bitrate and keyframe interval
+    //     parameters.encodings[0] = {
+    //       maxBitrate: 1000000, // 500 kbps
+    //       maxFramerate: 24, // 15 FPS
+    //       keyFrameInterval: 48, // Keyframe every 2 seconds (15 FPS * 2)
+    //     };
 
-        // Set max bitrate and keyframe interval
-        parameters.encodings[0] = {
-          maxBitrate: 1000000, // 500 kbps
-          maxFramerate: 24, // 15 FPS
-          keyFrameInterval: 48, // Keyframe every 2 seconds (15 FPS * 2)
-        };
-
-        await sender.setParameters(parameters);
-      }
-    };
+    //     await sender.setParameters(parameters);
+    //   }
+    // };
     connection.onicecandidate = (event) => {
       // console.log(event.candidate);
       if (event.candidate) {
@@ -337,7 +412,10 @@ function startStreaming() {
       })
       .then(
         (desc) => {
-          desc.sdp = preferCodec(desc.sdp, "AV1X");
+          desc.sdp = desc.sdp.replace(
+            /a=mid:video\r\n/g,
+            "a=mid:video\r\nb=AS:256\r\n"
+          );
           connection.setLocalDescription(desc);
           let data = { client: mappingid, stream: this.stream, sdpOffer: desc };
           socket.emit("/v1/stream/start", data);
@@ -361,55 +439,55 @@ function startStreaming() {
   });
 }
 
-function preferCodec(sdp, codec) {
-  const sdpLines = sdp.split("\r\n");
-  let mLineIndex = -1;
+// function preferCodec(sdp, codec) {
+//   const sdpLines = sdp.split("\r\n");
+//   let mLineIndex = -1;
 
-  // Find the m-line for video
-  for (let i = 0; i < sdpLines.length; i++) {
-    if (sdpLines[i].startsWith("m=video")) {
-      mLineIndex = i;
-      break;
-    }
-  }
+//   // Find the m-line for video
+//   for (let i = 0; i < sdpLines.length; i++) {
+//     if (sdpLines[i].startsWith("m=video")) {
+//       mLineIndex = i;
+//       break;
+//     }
+//   }
 
-  if (mLineIndex === -1) {
-    return sdp;
-  }
+//   if (mLineIndex === -1) {
+//     return sdp;
+//   }
 
-  // Find the payload types for the codec
-  const codecRegex = new RegExp(`a=rtpmap:(\\d+) ${codec}/90000`, "i");
-  const payloadTypes = [];
+//   // Find the payload types for the codec
+//   const codecRegex = new RegExp(`a=rtpmap:(\\d+) ${codec}/90000`, "i");
+//   const payloadTypes = [];
 
-  for (let i = 0; i < sdpLines.length; i++) {
-    const match = sdpLines[i].match(codecRegex);
-    if (match) {
-      payloadTypes.push(match[1]);
-    }
-  }
+//   for (let i = 0; i < sdpLines.length; i++) {
+//     const match = sdpLines[i].match(codecRegex);
+//     if (match) {
+//       payloadTypes.push(match[1]);
+//     }
+//   }
 
-  if (payloadTypes.length === 0) {
-    return sdp;
-  }
+//   if (payloadTypes.length === 0) {
+//     return sdp;
+//   }
 
-  // Modify the m-line to set the codec as the first one
-  const mLineElements = sdpLines[mLineIndex].split(" ");
-  const newMLine = [
-    mLineElements[0],
-    mLineElements[1],
-    mLineElements[2],
-    ...payloadTypes,
-    ...mLineElements.slice(3),
-  ].join(" ");
+//   // Modify the m-line to set the codec as the first one
+//   const mLineElements = sdpLines[mLineIndex].split(" ");
+//   const newMLine = [
+//     mLineElements[0],
+//     mLineElements[1],
+//     mLineElements[2],
+//     ...payloadTypes,
+//     ...mLineElements.slice(3),
+//   ].join(" ");
 
-  sdpLines[mLineIndex] = newMLine;
+//   sdpLines[mLineIndex] = newMLine;
 
-  return sdpLines.join("\r\n");
-}
+//   return sdpLines.join("\r\n");
+// }
 
 function stopStreaming() {
   console.log(connection);
-  console.log(canvasStream);
+  //console.log(canvasStream);
   if (connection) connection.close();
   window.api.getItem("screensharing").then((data) => {
     console.log(data);
@@ -428,6 +506,7 @@ function initStreaming() {
   socket.close();
   connect();
 }
+
 window.api.onBmpData((bmpData) => {
   //   const videoTracks = canvasStream.getVideoTracks();
   //   const audioTracks = canvasStream.getAudioTracks();
@@ -456,3 +535,31 @@ window.api.onBmpData((bmpData) => {
   //   };
   // }
 });
+
+function getUserMediaStream() {
+  window.api
+    .getStream()
+    .then((streamID) => {
+      return navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          mandatory: {
+            chromeMediaSource: "desktop",
+            chromeMediaSourceId: streamID,
+            minWidth: 1280,
+            maxWidth: 1920,
+            minHeight: 720,
+            maxHeight: 1080,
+          },
+        },
+      });
+    })
+    .then((stream) => {
+      mediaStream = stream;
+      // const videoElement = document.getElementById("vid");
+      // videoElement.srcObject = stream;
+    })
+    .catch((error) => {
+      console.error("Error getting stream:", error);
+    });
+}
