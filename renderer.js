@@ -35,8 +35,9 @@ let canvas;
 let canvasStream;
 let currentStream;
 let videoElm;
-let finalStream;
+let isSeted;
 let currentDesktopState;
+
 document.addEventListener("DOMContentLoaded", () => {
   getUserMediaStream();
   window.api.getItem("VantageMDMScreenCastingConnect").then((data) => {
@@ -53,16 +54,16 @@ document.addEventListener("DOMContentLoaded", () => {
       };
       setInterval(() => {
         context.drawImage(img, 0, 0, canvas.width, canvas.height);
-        // context.font = "48px serif";
-        // context.textAlign = "center";
-        // context.textBaseline = "middle";
-        // context.fillStyle = "black";
-        // context.fillText("Hello, Canvas!", canvas.width / 2, canvas.height / 2);
+        context.font = "48px serif";
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillStyle = "black";
+        context.fillText("Hello, Canvas!", canvas.width / 2, canvas.height / 2);
       }, 1000 / 60);
-      videoElm = document.getElementById("vid");
-      // getUserMediaStream();
-      videoElm.srcObject = mediaStream;
-      finalStream = videoElm.captureStream();
+      // videoElm = document.getElementById("vid");
+      // // getUserMediaStream();
+      // videoElm.srcObject = mediaStream;
+      // finalStream = videoElm.captureStream();
       connect();
     }
   });
@@ -153,7 +154,6 @@ document.addEventListener("DOMContentLoaded", () => {
       startButton.disabled = true;
       stopButton.disabled = false;
     });
-    // connect();
   }
   if (stopButton) {
     stopButton.addEventListener("click", async () => {
@@ -164,42 +164,6 @@ document.addEventListener("DOMContentLoaded", () => {
       stopStreaming();
     });
   }
-
-  function readAndLogFile() {
-    const filePath = "C:\\state";
-    window.api
-      .readFile(filePath)
-      .then((result) => {
-        if (currentDesktopState !== result) {
-          if (result === "Default" || videoElm.srcObject === null) {
-            getUserMediaStream();
-            videoElm.srcObject = mediaStream;
-            currentDesktopState = result;
-            // const senders = connection.getSenders();
-            // console.log(senders);
-            // const newTracks = mediaStream.getTracks();
-            // senders.forEach((sender, index) => {
-            //   sender.replaceTrack(newTracks[index]);
-            // });
-          } else if (result === "Secure" || videoElm.srcObject === null) {
-            videoElm.srcObject = canvasStream;
-            currentDesktopState = result;
-            // const senders = connection.getSenders();
-            // console.log(senders);
-            // const newTracks = canvasStream.getTracks();
-            // senders.forEach((sender, index) => {
-            //   sender.replaceTrack(newTracks[index]);
-            // });
-          }
-          changeStream();
-        }
-        // Update the DOM or perform other actions with the result if needed
-      })
-      .catch((error) => {
-        console.error("Error reading file:", error);
-      });
-  }
-  setInterval(readAndLogFile, 33);
 });
 
 function changeStream() {
@@ -331,6 +295,30 @@ function onStreamLeave() {
   // startStreaming();
 }
 function startStreaming() {
+  function readAndLogFile() {
+    console.log("readfile");
+    const filePath = "C:\\state";
+    window.api
+      .readFile(filePath)
+      .then((result) => {
+        if (currentDesktopState !== result || isSeted !== true) {
+          if (result === "Default") {
+            getUserMediaStream();
+            if (mediaStream !== null) isSeted = true;
+            currentDesktopState = result;
+          } else if (result === "Secure") {
+            currentDesktopState = result;
+            if (canvasStream !== null) isSeted = true;
+          }
+          changeStream();
+        }
+        // Update the DOM or perform other actions with the result if needed
+      })
+      .catch((error) => {
+        console.error("Error reading file:", error);
+      });
+  }
+  setInterval(readAndLogFile, 33);
   this.connect((err) => {
     answerReceived = false;
     if (connection) {
@@ -361,6 +349,7 @@ function startStreaming() {
     };
 
     connection = new RTCPeerConnection(configuration, constraints);
+    console.log(currentDesktopState);
     if (currentDesktopState === "Default") {
       mediaStream.getTracks().forEach((track) => {
         // track.contentHint = "screenshare";
