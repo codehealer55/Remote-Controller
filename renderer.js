@@ -45,21 +45,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (data === true) {
       //Canvas Stream
 
-      canvas = document.getElementById("stream");
-      canvasStream = canvas.captureStream(30);
-      const context = canvas.getContext("2d");
-      const img = document.getElementById("image");
-      img.onload = () => {
-        context.drawImage(img, 0, 0, canvas.width, canvas.height);
-      };
-      setInterval(() => {
-        context.drawImage(img, 0, 0, canvas.width, canvas.height);
-        context.font = "48px serif";
-        context.textAlign = "center";
-        context.textBaseline = "middle";
-        context.fillStyle = "black";
-        context.fillText("Hello, Canvas!", canvas.width / 2, canvas.height / 2);
-      }, 1000 / 60);
       // videoElm = document.getElementById("vid");
       // // getUserMediaStream();
       // videoElm.srcObject = mediaStream;
@@ -173,10 +158,11 @@ function changeStream() {
     const senders = connection.getSenders();
     // console.log(senders);
     let newTracks;
-    canvasStream = canvas.captureStream(30);
     // const newTracks = mediaStream.getTracks();
     if (currentDesktopState === "Default") newTracks = mediaStream.getTracks();
-    else newTracks = canvasStream.getTracks();
+    else {
+      newTracks = canvasStream.getTracks();
+    }
     senders.forEach((sender, index) => {
       sender.replaceTrack(newTracks[index]);
     });
@@ -296,7 +282,6 @@ function onStreamLeave() {
 }
 function startStreaming() {
   function readAndLogFile() {
-    console.log("readfile");
     const filePath = "C:\\state";
     window.api
       .readFile(filePath)
@@ -304,10 +289,60 @@ function startStreaming() {
         if (currentDesktopState !== result || isSeted !== true) {
           if (result === "Default") {
             getUserMediaStream();
+
+            imgElement = document.getElementById("image");
+            canvasElement = document.getElementById("stream");
+            if (imgElement && canvasElement) {
+              imgElement.remove();
+              canvasElement.remove();
+            }
+
             if (mediaStream !== null) isSeted = true;
             currentDesktopState = result;
           } else if (result === "Secure") {
+            console.log("secure");
             currentDesktopState = result;
+
+            const contentDiv = document.querySelector(".content");
+
+            // Create the img element
+            const imgElement = document.createElement("img");
+            imgElement.id = "image";
+            imgElement.width = 600;
+            imgElement.height = 400;
+            imgElement.src = "http://localhost:9876/video_feed";
+            imgElement.style.display = "block";
+
+            // Create the canvas element
+            const canvasElement = document.createElement("canvas");
+            canvasElement.id = "stream";
+            canvasElement.width = 1600;
+            canvasElement.height = 900;
+            canvasElement.style.display = "block";
+
+            // Append the img and canvas elements to the div
+            contentDiv.appendChild(imgElement);
+            contentDiv.appendChild(canvasElement);
+
+            canvas = document.getElementById("stream");
+            canvasStream = canvas.captureStream(30);
+            const context = canvas.getContext("2d");
+            const img = document.getElementById("image");
+            img.onload = () => {
+              context.drawImage(img, 0, 0, canvas.width, canvas.height);
+            };
+            setInterval(() => {
+              context.drawImage(img, 0, 0, canvas.width, canvas.height);
+              context.font = "48px serif";
+              context.textAlign = "center";
+              context.textBaseline = "middle";
+              context.fillStyle = "black";
+              context.fillText(
+                "Hello, Canvas!",
+                canvas.width / 2,
+                canvas.height / 2
+              );
+            }, 1000 / 60);
             if (canvasStream !== null) isSeted = true;
           }
           changeStream();
@@ -349,7 +384,7 @@ function startStreaming() {
     };
 
     connection = new RTCPeerConnection(configuration, constraints);
-    console.log(currentDesktopState);
+    // console.log(currentDesktopState);
     if (currentDesktopState === "Default") {
       mediaStream.getTracks().forEach((track) => {
         // track.contentHint = "screenshare";
